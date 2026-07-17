@@ -1,0 +1,2495 @@
+\documentclass[11pt]{article}
+
+\usepackage[a4paper,margin=1in]{geometry}
+\usepackage{amsmath,amssymb,amsthm,mathtools,bm}
+\usepackage{mathrsfs}
+\usepackage{hyperref}
+\usepackage{xcolor}
+\usepackage{graphicx}
+\usepackage{epstopdf}
+% 导入核心宏包
+\usepackage{amsthm}
+\usepackage{multirow}   % 用于 \multirow 命令
+\usepackage{amsmath}    % 用于数学公式里的 \max, \rm 等
+\usepackage{booktabs}
+
+% 定义 example 环境
+\theoremstyle{plain}
+\newtheorem{example}{示例} % 中文环境建议命名为“示例”
+% 如需按章节编号（如 1.1, 1.2），使用：
+% \newtheorem{example}{示例}[section]
+
+\numberwithin{equation}{section}
+
+\newtheorem{proposition}{Proposition}[section]
+\newtheorem{theorem}{Theorem}[section]
+\newtheorem{remark}{Remark}[section]
+\newtheorem{property}{Property}[section]
+
+\newcommand{\dd}{\,\mathrm{d}}
+\newcommand{\R}{\mathbb{R}}
+\newcommand{\Om}{\Omega}
+\newcommand{\p}{\partial}
+\newcommand{\wt}{\widetilde}
+\newcommand{\wh}{\widehat}
+
+
+\begin{document}
+
+\title{Applying the Onsager Discrete Method to a Tumor Growth Model}
+
+%\author{Weijie Huang}
+%\affiliation{School of Mathematics and Statistics, Beijing Jiaotong University, Beijing 100044, China}
+%\email{wjhuang@bjtu.edu.cn}
+%
+%\author{Xinran Ruan}
+%\affiliation{School of Mathematical Sciences, Capital Normal University, Beijing 100048, China}
+%\email{xinran.ruan@cun.edu.cn}
+
+\date{}
+\maketitle
+
+\begin{abstract}
+We propose a structure-preserving numerical method for a pressure-driven
+tumor growth model with pressure-dependent proliferation. The model is a
+degenerate porous-medium type equation with pressure law \(p=n^\gamma\),
+and it approaches a Hele--Shaw type free boundary problem in the stiff
+pressure limit. The method is derived from the Onsager variational
+principle. By introducing a modified energy shifted by the homeostatic
+pressure, the growth term can be written in a dissipative form and treated
+together with the transport part in a unified Rayleighian formulation.
+This leads to a time-discrete constrained minimization problem and a fully
+discrete finite difference scheme with explicit mobilities and an implicit
+pressure update. We prove that the scheme preserves nonnegativity, the
+homeostatic upper bound, and a discrete modified energy dissipation law.
+Numerical experiments in one and two space dimensions demonstrate the
+accuracy and robustness of the method. The scheme captures Barenblatt
+solutions, preserves mass and energy dissipation in the pure diffusion
+case, remains stable for nonzero growth, and reproduces the convergence
+toward the Hele--Shaw limit for large \(\gamma\). Two-dimensional examples
+further show its ability to resolve free boundary evolutions with topology
+changes.
+\end{abstract}
+
+
+\section{Introduction}
+
+Mathematical models for tumor growth provide an important framework for
+understanding the interaction between cell proliferation, mechanical pressure,
+and free boundary motion. In many continuum descriptions, the tumor cell
+population is represented by a density variable, and the mechanical response of
+the tissue is described through a pressure law. A widely used class of models is
+given by porous-medium type equations with pressure-dependent proliferation.
+Such models are able to describe finite-speed propagation of the tumor region
+and lead, in the stiff-pressure limit, to Hele--Shaw type free boundary
+problems. These features make them useful both for mathematical analysis and
+for numerical simulation of tumor growth phenomena.
+
+In this paper, we consider the pressure-driven tumor growth model
+\begin{equation}\label{eq:tumor-model}
+\partial_t n+\nabla\cdot j=nG(p),\qquad
+j=-n\nabla p,\qquad
+p=n^\gamma ,
+\end{equation}
+posed in a bounded domain \(\Omega\subset\mathbb R^d\). Here
+\(n=n(x,t)\ge 0\) denotes the tumor cell density, \(j=j(x,t)\) is the cell
+flux, \(p=p(x,t)\) is the mechanical pressure, and \(\gamma>1\) is the
+stiffness parameter in the pressure law. The function \(G\) represents the net
+proliferation rate. It is usually assumed that cell growth is inhibited by
+large pressure and vanishes at a homeostatic pressure. The precise structural
+assumptions on \(G\) will be stated in Section~\ref{sec:model}.
+
+The model \eqref{eq:intro-model} has attracted considerable attention in the
+analysis of tumor growth and free boundary limits. For fixed \(\gamma\), it is a
+degenerate reaction-diffusion equation. When \(\gamma\) becomes large, the
+density tends to satisfy a congestion constraint, while the pressure becomes a
+Lagrange multiplier associated with the saturated region. The limiting problem
+is closely related to a Hele--Shaw free boundary problem with growth. This
+singular limit is important for tumor growth modeling, since it connects
+compressible density-based descriptions with incompressible free boundary
+models.
+
+From the numerical point of view, the model contains several difficulties. The
+diffusion is degenerate in vacuum regions, and the solution may develop sharp
+interfaces. The growth term changes the total mass and must be treated in a way
+that is compatible with the pressure inhibition mechanism. In addition, when
+\(\gamma\) is large, the pressure law becomes stiff, and a numerical method
+should remain robust without requiring excessive mesh refinement or very small
+time steps. It is therefore desirable to construct schemes that preserve the
+main structural properties of the continuous model, including nonnegativity,
+upper bounds, energy dissipation, and the correct incompressible-limit
+behavior.
+
+The purpose of this paper is to develop a structure-preserving numerical method
+for \eqref{eq:intro-model} based on the Onsager variational principle. The key
+observation is that, after shifting the pressure energy by the homeostatic
+pressure, the pressure-dependent growth term can be written in a dissipative
+form. This allows us to incorporate both the transport part and the reaction
+part into a unified Onsager formulation. Based on this formulation, we construct
+a discrete Rayleighian and derive a time-discrete scheme through a constrained
+minimization problem. The resulting scheme naturally inherits a modified energy
+dissipation law.
+
+The main contributions of this paper are summarized as follows. First, we give
+an Onsager variational formulation for the pressure-driven tumor growth model
+with pressure-inhibited proliferation. Both the transport flux and the reaction
+source are obtained from the minimization of a Rayleighian functional. Second,
+we propose a time-discrete scheme based on a discrete Rayleighian formulation
+and prove its energy stability. Third, we present a fully discrete finite
+difference scheme and show that it preserves nonnegativity, the homeostatic
+upper bound, and a discrete modified energy dissipation law. Fourth, we study
+the asymptotic-preserving property of the fully discrete scheme in the limit
+\(\gamma\to\infty\). Finally, we provide numerical experiments in one and two
+space dimensions to verify the accuracy, structure preservation, large-\(\gamma\)
+behavior, and robustness of the proposed method for free boundary evolutions.
+
+The rest of the paper is organized as follows. In Section~\ref{sec:model}, we
+present the model, state the assumptions on the growth function, and collect
+several structural properties. In Section~\ref{sec:onsager}, we derive the
+Onsager formulation and construct the time-discrete scheme. In
+Section~\ref{sec:fully-discrete}, we introduce the fully discrete finite
+difference scheme and prove its structure-preserving properties. In
+Section~\ref{sec:ap}, we analyze the asymptotic-preserving property in the
+incompressible limit. Numerical experiments are reported in
+Section~\ref{sec:numerics}. Finally, conclusions are given in
+Section~\ref{sec:conclusion}.
+
+\section{The model and its structural properties}\label{sec:model}
+In this section, we fix the setting and assumptions for the model
+\eqref{eq:tumor-model}. We also recall several elementary estimates for
+smooth solutions.
+
+Let \(\Omega\subset\mathbb R^d\) be a bounded domain. Throughout this
+section, \(n=n(x,t)\), \(j=j(x,t)\), and \(p=p(x,t)\) are as in
+\eqref{eq:tumor-model}, and the equations are considered in
+\(\Omega\times(0,T]\). The initial condition is
+\begin{equation}\label{eq:initial-condition}
+    n(x,0)=n_0(x),
+    \qquad x\in\Omega .
+\end{equation}
+The corresponding initial pressure is
+\[
+    p_0(x)=p(x,0)=n_0(x)^\gamma .
+\]
+On the boundary, we impose the no-flux condition
+\begin{equation}\label{eq:no-flux}
+    j\cdot\nu=0,
+    \qquad x\in\partial\Omega,\quad 0<t\le T ,
+\end{equation}
+where \(\nu\) denotes the outward unit normal vector.
+
+For the growth function \(G\) in \eqref{eq:tumor-model}, we assume that
+there exists a homeostatic pressure \(p_H>0\) such that
+\(G\in C^1([0,\infty))\) and
+\begin{equation}\label{eq:g-assumption}
+G(p_H)=0,
+\qquad
+G'(p)\le 0,
+\qquad p\ge 0 .
+\end{equation}
+This assumption is commonly used in mechanical tumor growth models
+\cite{} and means that the growth rate decreases as the pressure increases
+and vanishes at \(p=p_H\). It immediately gives
+\begin{equation}\label{eq:g-dissipative}
+(p-p_H)G(p)\le0,
+\qquad p\ge0 .
+\end{equation}
+
+With this assumption, the following elementary estimates hold for smooth
+solutions.
+\begin{proposition}[Positivity, upper bound, and mass estimate]
+\label{prop:continuous-bounds}
+Assume that \(n_0\ge0\) in \(\Omega\). Then any smooth solution of
+\eqref{eq:tumor-model} subject to \eqref{eq:initial-condition} and
+\eqref{eq:no-flux} satisfies
+\[
+    n(x,t)\ge0,
+    \qquad
+    p(x,t)\ge0,
+    \qquad x\in\Omega,\quad 0\le t\le T .
+\]
+If, in addition, \(0\le p_0\le p_H\) in \(\Omega\), then
+\begin{equation}\label{eq:continuous-upper-bound}
+    0\le p(x,t)\le p_H,
+    \qquad
+    0\le n(x,t)\le n_H:=p_H^{1/\gamma},
+    \qquad x\in\Omega,\quad 0\le t\le T .
+\end{equation}
+Moreover,
+\begin{equation}\label{eq:l1-bound-property}
+    \int_\Omega n(x,t)\,dx
+    \le
+    e^{G(0)t}\int_\Omega n_0(x)\,dx,
+    \qquad 0\le t\le T .
+\end{equation}
+\end{proposition}
+
+\begin{proof}
+The nonnegativity follows formally from the comparison principle. Indeed,
+\(n=0\) is an invariant state of the equation, since both the flux and the
+reaction term vanish when \(n=0\). Hence nonnegative initial data remain
+nonnegative. Since \(p=n^\gamma\), this also gives \(p\ge0\).
+
+We next prove the upper bound. Differentiating the pressure law
+\(p=n^\gamma\) in time and using \eqref{eq:tumor-model}, we obtain the
+pressure equation
+\begin{equation}\label{eq:pressure-equation-property}
+    \partial_t p
+    =
+    |\nabla p|^2+\gamma p\bigl(\Delta p+G(p)\bigr).
+\end{equation}
+The constant function \(p_H\) is a supersolution of
+\eqref{eq:pressure-equation-property}, since \(G(p_H)=0\). To see this,
+suppose that \(p\) reaches \(p_H\) from below for the first time. At a
+maximum point, the maximum principle gives \(\nabla p=0\) and
+\(\Delta p\le0\). Thus, by \eqref{eq:pressure-equation-property},
+\[
+    \partial_t p
+    =
+    \gamma p_H\Delta p+\gamma p_HG(p_H)
+    \le0 .
+\]
+Therefore \(p\) cannot cross \(p_H\), and hence \(p\le p_H\). The bound
+for \(n\) follows from \(p=n^\gamma\).
+
+It remains to prove the mass estimate. Integrating \eqref{eq:tumor-model}
+over \(\Omega\) and using the no-flux condition \eqref{eq:no-flux}, we get
+\[
+    \frac{d}{dt}\int_\Omega n\,dx
+    =
+    \int_\Omega nG(p)\,dx .
+\]
+Since \(p\ge0\) and \(G\) is nonincreasing, \(G(p)\le G(0)\). Together
+with \(n\ge0\), this gives
+\[
+    \frac{d}{dt}\int_\Omega n\,dx
+    \le
+    G(0)\int_\Omega n\,dx .
+\]
+The estimate \eqref{eq:l1-bound-property} follows from Gronwall's
+inequality.
+\end{proof}
+
+
+\begin{proposition}[Modified energy dissipation]
+\label{prop:energy-dissipation}
+Define the modified energy by
+\begin{equation}\label{eq:modified-energy}
+    \mathcal E(n)
+    =
+    \int_\Omega
+    \left(
+    \frac{1}{\gamma+1}n^{\gamma+1}-p_H n
+    \right)\,dx .
+\end{equation}
+Let \(n\) be a nonnegative smooth solution of \eqref{eq:tumor-model}
+subject to the no-flux boundary condition \eqref{eq:no-flux}. Then
+\begin{equation}\label{eq:modified-energy-balance}
+    \frac{d}{dt}\mathcal E(n)
+    =
+    -\int_\Omega n|\nabla p|^2\,dx
+    +
+    \int_\Omega n(p-p_H)G(p)\,dx .
+\end{equation}
+Consequently, by \eqref{eq:g-dissipative},
+\begin{equation}\label{eq:modified-energy-dissipation}
+    \frac{d}{dt}\mathcal E(n)
+    \le
+    -\int_\Omega n|\nabla p|^2\,dx
+    \le0 .
+\end{equation}
+\end{proposition}
+
+\begin{proof}
+Since
+\[
+    \frac{\delta\mathcal E}{\delta n}
+    =
+    n^\gamma-p_H
+    =
+    p-p_H ,
+\]
+using \eqref{eq:tumor-model} gives
+\begin{align*}
+    \frac{d}{dt}\mathcal E(n)
+    &=
+    \int_\Omega (p-p_H)\partial_t n\,dx  \\
+    &=
+    \int_\Omega (p-p_H)
+    \left(\nabla\cdot(n\nabla p)+nG(p)\right)\,dx  \\
+    &=
+    -\int_\Omega n\nabla p\cdot\nabla(p-p_H)\,dx
+    +
+    \int_\Omega n(p-p_H)G(p)\,dx  \\
+    &=
+    -\int_\Omega n|\nabla p|^2\,dx
+    +
+    \int_\Omega n(p-p_H)G(p)\,dx .
+\end{align*}
+Here the boundary term vanishes because
+\(n\nabla p\cdot\nu=-j\cdot\nu=0\) on \(\partial\Omega\). This proves
+\eqref{eq:modified-energy-balance}. Since \(n\ge0\), the second term on
+the right-hand side is nonpositive by \eqref{eq:g-dissipative}. Hence
+\eqref{eq:modified-energy-dissipation} follows.
+\end{proof}
+
+\begin{remark}\label{rem:modified-energy}
+The first term in \eqref{eq:modified-energy} is the usual energy associated
+with the pressure law. The additional linear term \(-p_Hn\) shifts the
+variational derivative from \(p\) to \(p-p_H\). Since the gradient is
+unchanged, this shift does not affect the transport part. Its effect appears
+only in the reaction contribution, where the factor \(p-p_H\) gives the sign
+in \eqref{eq:modified-energy-balance} through \eqref{eq:g-dissipative}. This
+shifted variational derivative will be used in the Onsager formulation below.
+\end{remark}
+
+
+
+%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%
+
+
+\section{Onsager formulation and numerical scheme}
+\label{sec:onsager-scheme}
+
+We now derive the numerical scheme from the Onsager variational principle \cite{}.
+We first introduce the continuous Rayleighian and show that its
+Euler--Lagrange equations recover the model \eqref{eq:tumor-model}. The
+time-discrete scheme is then obtained from a time-discrete Rayleighian.
+Finally, we give the fully discrete finite difference formulation.
+\subsection{Onsager variational formulation}
+\label{subsec:onsager-formulation}
+
+We begin with the continuous Onsager formulation of
+\eqref{eq:tumor-model}. Let \(\mathcal E\) be the modified energy defined
+in \eqref{eq:modified-energy}. We set
+\begin{equation}\label{eq:modified-chemical-potential}
+    \mu
+    :=
+    \frac{\delta\mathcal E}{\delta n}
+    =
+    p-p_H ,
+\end{equation}
+and use \(\mu\) as the chemical potential in what follows.
+
+
+To separate transport and reaction, introduce a reaction rate \(r\) and
+write the density equation as
+\begin{equation}\label{eq:balance-with-r}
+    \partial_t n+\nabla\cdot j=r .
+\end{equation}
+This balance law will be used as the constraint in the Onsager
+minimization.
+
+
+For later use, we introduce the reaction mobility
+\begin{equation}\label{eq:reaction-mobility}
+    \mathcal M(n,p)
+    =
+    \begin{cases}
+    -\dfrac{nG(p)}{p-p_H}, & p\ne p_H,\\[1.2ex]
+    -nG'(p_H), & p=p_H .
+    \end{cases}
+\end{equation}
+The second value is the limit of the first one as \(p\to p_H\), using
+\(G(p_H)=0\). By \eqref{eq:g-assumption} and
+\eqref{eq:g-dissipative}, \(\mathcal M(n,p)\ge0\) for \(n\ge0\) and
+\(p\ge0\). 
+
+
+With the transport mobility \(n\) and the reaction mobility
+\(\mathcal M(n,p)\), we define the dissipation functional
+\begin{equation}\label{eq:total-dissipation}
+    \Phi(n;j,r)
+    =
+    \frac12\int_\Omega \frac{|j|^2}{n}\,dx
+    +
+    \frac12\int_\Omega \frac{r^2}{\mathcal M(n,p)}\,dx .
+\end{equation}
+Since
+\[
+    \frac{d}{dt}\mathcal E(n)
+    =
+    \int_\Omega \mu\,\partial_t n\,dx ,
+\]
+the Rayleighian is defined by
+\begin{equation}\label{eq:rayleighian}
+    \mathcal R(n;\partial_t n,j,r)
+    =
+    \Phi(n;j,r)
+    +
+    \frac{d}{dt}\mathcal E(n)
+    =
+    \int_\Omega
+    \left(
+    \frac{|j|^2}{2n}
+    +
+    \frac{r^2}{2\mathcal M(n,p)}
+    +
+    \mu\,\partial_t n
+    \right)dx .
+\end{equation}
+
+For a fixed density \(n\), the quantities \(p\), \(\mu\), and
+\(\mathcal M(n,p)\) are regarded as given. According to the Onsager
+principle, the rate variables \(\partial_t n\), \(j\), and \(r\) are
+determined by minimizing \(\mathcal R\) under the constraint
+\eqref{eq:balance-with-r}. Introducing a Lagrange multiplier \(\lambda\),
+define
+\begin{equation}\label{eq:augmented-rayleighian}
+    \mathcal R_\lambda
+    =
+    \mathcal R
+    -
+    \int_\Omega
+    \lambda\left(\partial_t n+\nabla\cdot j-r\right)dx .
+\end{equation}
+Setting the first variation of \(\mathcal R_\lambda\) to zero with respect
+to \(\partial_t n\), \(j\), \(r\), and \(\lambda\), respectively, gives
+\begin{align}
+    &\mu-\lambda=0,
+    \label{eq:variation-nt}\\
+    &\frac{j}{n}+\nabla\lambda=0,
+    \label{eq:variation-j}\\
+    &\frac{r}{\mathcal M(n,p)}+\lambda=0,
+    \label{eq:variation-r}\\
+    &\partial_t n+\nabla\cdot j=r .
+    \label{eq:variation-lambda}
+\end{align}
+In deriving \eqref{eq:variation-j}, the boundary term from integration by
+parts vanishes under the no-flux condition \eqref{eq:no-flux}.
+
+From \eqref{eq:variation-nt}, we have \(\lambda=\mu\). Then
+\eqref{eq:variation-j}, together with
+\eqref{eq:modified-chemical-potential}, gives
+\[
+    j
+    =
+    -n\nabla\lambda
+    =
+    -n\nabla\mu
+    =
+    -n\nabla p .
+\]
+Similarly, using \eqref{eq:variation-r},
+\eqref{eq:modified-chemical-potential}, and
+\eqref{eq:reaction-mobility}, we obtain
+\[
+    r
+    =
+    -\mathcal M(n,p)\lambda
+    =
+    -\mathcal M(n,p)\mu
+    =
+    nG(p).
+\]
+Substituting these two relations into the balance law
+\eqref{eq:balance-with-r}, and recalling \(p=n^\gamma\), we recover
+\eqref{eq:tumor-model}.
+
+
+\begin{remark}[Pure diffusion case]\label{rem:onsager-pure-diffusion}
+When \(G\equiv0\), the reaction term is absent. In this case, the reaction
+rate \(r\) and the reaction dissipation term in \eqref{eq:total-dissipation}
+are omitted. The balance law reduces to
+\[
+    \partial_t n+\nabla\cdot j=0,
+\]
+and the Rayleighian becomes
+\[
+    \mathcal R(n;\partial_t n,j)
+    =
+    \int_\Omega
+    \left(
+    \frac{|j|^2}{2n}
+    +
+    \mu\,\partial_t n
+    \right)dx .
+\]
+Minimization under the above mass balance gives
+\[
+    j=-n\nabla\mu=-n\nabla p.
+\]
+Together with \(p=n^\gamma\), this recovers the pure porous medium
+equation.
+\end{remark}
+
+\subsection{Time-discrete scheme from a discrete Rayleighian}
+\label{subsec:time-discrete}
+
+We next derive a time-discrete scheme from the Rayleighian formulation.
+Let \(\tau>0\) be the time step and \(t_k=k\tau\). Suppose that
+\(n^k\) is known, and set
+\[
+    p^k=(n^k)^\gamma .
+\]
+The mobilities in the dissipation terms are evaluated at the known state
+\(n^k\). Thus the transport mobility is \(n^k\), and the reaction mobility
+is given pointwise by
+\begin{equation}\label{eq:discrete-reaction-mobility}
+    \mathcal M^k
+    =
+    \begin{cases}
+    -\dfrac{n^kG(p^k)}{p^k-p_H}, & p^k\ne p_H,\\[1.2ex]
+    -n^kG'(p_H), & p^k=p_H .
+    \end{cases}
+\end{equation}
+As before, the second value is the limiting value at \(p^k=p_H\). From
+\eqref{eq:g-assumption} and \eqref{eq:g-dissipative}, we have
+\[
+    \mathcal M^k\ge0
+    \qquad \text{if } n^k\ge0 .
+\]
+
+For trial variables \(n\), \(j\), and \(r\), we discretize the balance law
+\eqref{eq:balance-with-r} over one time step as
+\begin{equation}\label{eq:time-discrete-balance-jr}
+    \frac{n-n^k}{\tau}+\nabla\cdot j=r,
+    \qquad
+    j\cdot\nu=0
+    \quad \text{on }\partial\Omega .
+\end{equation}
+The time-discrete Rayleighian is defined by
+\begin{equation}\label{eq:time-discrete-rayleighian}
+    \mathcal R_\tau^k(n,j,r)
+    =
+    \frac{\mathcal E(n)-\mathcal E(n^k)}{\tau}
+    +
+    \frac12\int_\Omega \frac{|j|^2}{n^k}\,dx
+    +
+    \frac12\int_\Omega \frac{r^2}{\mathcal M^k}\,dx .
+\end{equation}
+
+Introducing
+\[
+    m=\tau j,
+    \qquad
+    q=\tau r,
+\]
+we can rewrite \eqref{eq:time-discrete-balance-jr} as
+\begin{equation}\label{eq:discrete-balance}
+    n-n^k+\nabla\cdot m=q,
+    \qquad
+    m\cdot\nu=0
+    \quad \text{on }\partial\Omega .
+\end{equation}
+
+After multiplying \eqref{eq:time-discrete-rayleighian} by \(\tau\) and
+dropping the constant \(\mathcal E(n^k)\), the minimization of
+\(\mathcal R_\tau^k\) is equivalent to the minimization of
+\begin{equation}\label{eq:discrete-rayleighian}
+    \mathcal J_\tau^k(n,m,q)
+    =
+    \mathcal E(n)
+    +
+    \frac{1}{2\tau}\int_\Omega \frac{|m|^2}{n^k}\,dx
+    +
+    \frac{1}{2\tau}\int_\Omega \frac{q^2}{\mathcal M^k}\,dx .
+\end{equation}
+
+The next time step is defined by
+\begin{equation}\label{eq:discrete-minimization}
+    (n^{k+1},m^{k+1},q^{k+1})
+    =
+    \operatorname*{arg\,min}_{(n,m,q)\in\mathcal A^k}
+    \mathcal J_\tau^k(n,m,q),
+\end{equation}
+where the admissible set is
+\begin{equation}\label{eq:admissible-set}
+    \mathcal A^k
+    =
+    \left\{
+    (n,m,q)\ \middle|\
+    n\ge0,\quad
+    n-n^k+\nabla\cdot m=q \ \text{in }\Omega,\quad
+    m\cdot\nu=0 \ \text{on }\partial\Omega
+    \right\}.
+\end{equation}
+
+We now derive the Euler--Lagrange equations of the constrained
+minimization problem \eqref{eq:discrete-minimization}. Introducing a
+Lagrange multiplier \(\lambda\) for the constraint
+\eqref{eq:discrete-balance}, define
+\[
+    \mathcal J_{\tau,\lambda}^k
+    =
+    \mathcal J_\tau^k
+    -
+    \int_\Omega
+    \lambda\left(n-n^k+\nabla\cdot m-q\right)\,dx .
+\]
+Let \((n^{k+1},m^{k+1},q^{k+1})\) be a smooth minimizer, and denote the
+corresponding multiplier by \(\lambda^{k+1}\). Setting the first variation
+of \(\mathcal J_{\tau,\lambda}^k\) to zero with respect to \(n\), \(m\),
+\(q\), and \(\lambda\), respectively, gives
+\begin{align}
+    &\frac{\delta\mathcal E}{\delta n}(n^{k+1})
+    -\lambda^{k+1}=0,
+    \label{eq:el-discrete-n}\\
+    &\frac{m^{k+1}}{\tau n^k}
+    +\nabla\lambda^{k+1}=0,
+    \label{eq:el-discrete-m}\\
+    &\frac{q^{k+1}}{\tau\mathcal M^k}
+    +\lambda^{k+1}=0,
+    \label{eq:el-discrete-q}\\
+    &n^{k+1}-n^k+\nabla\cdot m^{k+1}=q^{k+1}.
+    \label{eq:el-discrete-constraint}
+\end{align}
+In deriving \eqref{eq:el-discrete-m}, the boundary term from integration by
+parts vanishes under the boundary condition in \eqref{eq:discrete-balance}.
+
+From \eqref{eq:el-discrete-n}, we have
+\[
+    \lambda^{k+1}
+    =
+    \mu^{k+1}
+    :=
+    p^{k+1}-p_H,
+    \qquad
+    p^{k+1}=(n^{k+1})^\gamma .
+\]
+Then \eqref{eq:el-discrete-m} and \eqref{eq:el-discrete-q} give
+\begin{equation}\label{eq:time-discrete-flux-reaction}
+\begin{aligned}
+    m^{k+1}
+    &=
+    -\tau n^k\nabla\lambda^{k+1}
+    =
+    -\tau n^k\nabla\mu^{k+1},\\
+    q^{k+1}
+    &=
+    -\tau\mathcal M^k\lambda^{k+1}
+    =
+    -\tau\mathcal M^k\mu^{k+1}.
+\end{aligned}
+\end{equation}
+Substituting \eqref{eq:time-discrete-flux-reaction} into
+\eqref{eq:el-discrete-constraint} gives
+\begin{equation}\label{eq:time-discrete-scheme}
+    \frac{n^{k+1}-n^k}{\tau}
+    =
+    \nabla\cdot\left(n^k\nabla\mu^{k+1}\right)
+    -
+    \mathcal M^k\mu^{k+1},
+    \qquad
+    \mu^{k+1}=p^{k+1}-p_H .
+\end{equation}
+Since \(\nabla\mu^{k+1}=\nabla p^{k+1}\), this is equivalently written as
+\begin{equation}\label{eq:time-discrete-scheme-pressure}
+    \frac{n^{k+1}-n^k}{\tau}
+    =
+    \nabla\cdot\left(n^k\nabla p^{k+1}\right)
+    -
+    \mathcal M^k\left(p^{k+1}-p_H\right),
+    \qquad
+    p^{k+1}=(n^{k+1})^\gamma .
+\end{equation} 
+The boundary condition follows from \(m^{k+1}\cdot\nu=0\) in
+\eqref{eq:discrete-balance}. Using the first relation in
+\eqref{eq:time-discrete-flux-reaction} and
+\(\nabla\mu^{k+1}=\nabla p^{k+1}\), we obtain
+\begin{equation}\label{eq:time-discrete-boundary}
+    n^k\nabla p^{k+1}\cdot\nu=0
+    \qquad \text{on }\partial\Omega .
+\end{equation}
+
+Before passing to the spatial discretization, we record the bound-preserving
+property and the energy stability of the time-discrete scheme.
+
+
+\begin{proposition}[Positivity and upper bound]
+\label{prop:td-positivity-upper-bound}
+Assume that \(n^k\ge0\). Let
+\((n^{k+1},m^{k+1},q^{k+1})\) be a minimizer of
+\eqref{eq:discrete-minimization}. Then
+\[
+    n^{k+1}\ge0 .
+\]
+If, in addition, \(0\le n^k\le n_H\), assume that this minimizer is smooth
+and satisfies the Euler--Lagrange system
+\eqref{eq:time-discrete-scheme-pressure} and
+\eqref{eq:time-discrete-boundary}. Then
+\[
+    0\le n^{k+1}\le n_H,
+    \qquad
+    0\le p^{k+1}\le p_H .
+\]
+\end{proposition}
+
+
+\begin{proof}\color{red}{...}
+The nonnegativity follows from the definition of the admissible set
+\eqref{eq:admissible-set}, which requires \(n\ge0\).
+
+
+We prove the upper bound. Set
+\[
+    w=(p^{k+1}-p_H)_+ .
+\]
+Since \(p^{k+1}=(n^{k+1})^\gamma\), on the set where \(w>0\) we have
+\(p^{k+1}>p_H\), and hence \(n^{k+1}>n_H\). Using the assumption
+\(n^k\le n_H\), this gives
+\[
+    (n^{k+1}-n^k)w\ge0
+    \qquad \text{in }\Omega .
+\]
+
+Multiplying \eqref{eq:time-discrete-scheme-pressure} by \(w\), integrating
+over \(\Omega\), and using the boundary condition
+\eqref{eq:time-discrete-boundary}, we obtain
+\[
+    \frac1\tau\int_\Omega (n^{k+1}-n^k)w\,dx
+    =
+    -\int_\Omega n^k|\nabla w|^2\,dx
+    -
+    \int_\Omega \mathcal M^k w^2\,dx .
+\]
+Here we used \(\nabla w=\nabla p^{k+1}\) on the set
+\(\{p^{k+1}>p_H\}\) and \(\nabla w=0\) elsewhere. Since
+\(n^k\ge0\) and \(\mathcal M^k\ge0\), the right-hand side is nonpositive.
+The left-hand side is nonnegative by the previous inequality. Therefore
+both sides must be zero.
+
+It follows that \(w=0\), and hence \(p^{k+1}\le p_H\). Since
+\(n^{k+1}\ge0\), we also have \(p^{k+1}\ge0\). Finally,
+\(p^{k+1}=(n^{k+1})^\gamma\) gives
+\[
+    0\le n^{k+1}\le n_H .
+\]
+The proof is complete.
+\end{proof}
+
+\begin{proposition}[Energy stability]
+\label{prop:time-discrete-energy}
+Assume that \(n^k\ge0\). Let
+\((n^{k+1},m^{k+1},q^{k+1})\) be a minimizer of
+\eqref{eq:discrete-minimization}. Then
+\begin{equation}\label{eq:time-discrete-energy}
+\mathcal E(n^{k+1})
++
+\frac{1}{2\tau}
+\int_\Omega
+\frac{|m^{k+1}|^2}{n^k}\,dx
++
+\frac{1}{2\tau}
+\int_\Omega
+\frac{|q^{k+1}|^2}{\mathcal M^k}\,dx
+\le
+\mathcal E(n^k).
+\end{equation}
+In particular, \(\mathcal E(n^{k+1})\le \mathcal E(n^k)\).
+\end{proposition}
+
+\begin{proof}
+Since \(n^k\ge0\), we have \((n^k,0,0)\in\mathcal A^k\). By the
+minimizing property,
+\[
+\mathcal J_\tau^k(n^{k+1},m^{k+1},q^{k+1})
+\le
+\mathcal J_\tau^k(n^k,0,0)
+=
+\mathcal E(n^k).
+\]
+Using the definition of \(\mathcal J_\tau^k\), we obtain
+\eqref{eq:time-discrete-energy}. The last assertion follows since the
+dissipation terms are nonnegative.
+\end{proof}
+
+\begin{remark}[Pure diffusion case]\label{rem:pure-diffusion}
+If \(G\equiv0\), the reaction part is absent. We set \(r\equiv0\) in the
+continuous Onsager formulation. At the time-discrete level, the variable
+\(q\) and the reaction dissipation term in \eqref{eq:discrete-rayleighian}
+are omitted. The admissible set becomes
+\[
+\mathcal A_0^k
+=
+\left\{
+(n,m)\ \middle|\
+n\ge0,\quad
+n-n^k+\nabla\cdot m=0 \ \text{in } \Omega,\quad
+m\cdot\nu=0 \ \text{on } \partial\Omega
+\right\}.
+\]
+The minimization problem reduces to
+\[
+(n^{k+1},m^{k+1})
+=
+\operatorname*{arg\,min}_{(n,m)\in\mathcal A_0^k}
+\left\{
+\mathcal E(n)
++
+\frac{1}{2\tau}
+\int_\Omega \frac{|m|^2}{n^k}\,dx
+\right\}.
+\]
+\end{remark}
+
+
+%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%
+
+
+For clarity, we present the spatial discretization in one space dimension.
+This setting contains the main ingredients needed for the structure-preserving
+analysis, while the two-dimensional Cartesian extension used in the numerical
+experiments is given in Appendix~\ref{app:2d-scheme}.
+
+Let \(\Omega=(a,b)\), \(h=(b-a)/N\), and
+\[
+x_i=a+\left(i-\frac12\right)h,
+\qquad 1\le i\le N .
+\]
+The value \(n_i^k\) approximates the density at the cell center \(x_i\)
+and time \(t_k=k\tau\), and the pressure is given by
+\[
+p_i^k=(n_i^k)^\gamma .
+\]
+For a cell-centered grid function \(v=\{v_i\}_{i=1}^N\) and an interface
+grid function \(F=\{F_{i+\frac12}\}_{i=0}^N\), we define
+\[
+(\delta_h v)_{i+\frac12}
+=
+\frac{v_{i+1}-v_i}{h},
+\qquad 1\le i\le N-1,
+\]
+and
+\[
+(d_hF)_i
+=
+\frac{F_{i+\frac12}-F_{i-\frac12}}{h},
+\qquad 1\le i\le N .
+\]
+
+Given \(n^k=\{n_i^k\}_{i=1}^N\), we determine
+\(n^{k+1}=\{n_i^{k+1}\}_{i=1}^N\) with \(n_i^{k+1}\ge0\). Set
+\(p_i^{k+1}=(n_i^{k+1})^\gamma\). For \(1\le i\le N-1\), let
+\[
+n_{i+\frac12}^k
+=
+\frac{n_i^k+n_{i+1}^k}{2}.
+\]
+We define
+\begin{equation}
+F_{i+\frac12}^{k+1}
+=
+n_{i+\frac12}^k
+(\delta_h p^{k+1})_{i+\frac12},
+\qquad 1\le i\le N-1 .
+\label{eq:fd-flux}
+\end{equation}
+Then \(n^{k+1}\) satisfies
+\begin{equation}
+\frac{n_i^{k+1}-n_i^k}{\tau}
+=
+(d_hF^{k+1})_i
+-
+\mathcal M_i^k
+\left(p_i^{k+1}-p_H\right),
+\qquad 1\le i\le N .
+\label{eq:fd-scheme}
+\end{equation}
+The no-flux boundary condition is imposed by
+\begin{equation}
+F_{\frac12}^{k+1}=F_{N+\frac12}^{k+1}=0 .
+\label{eq:fd-no-flux}
+\end{equation}
+Here
+\begin{equation}
+\mathcal M_i^k
+=
+\begin{cases}
+-\dfrac{n_i^kG(p_i^k)}{p_i^k-p_H}, & p_i^k\ne p_H,\\[1.2ex]
+-n_i^kG'(p_H), & p_i^k=p_H .
+\end{cases}
+\label{eq:fd-reaction-mobility}
+\end{equation}
+Since \(p_i^{k+1}=(n_i^{k+1})^\gamma\), \eqref{eq:fd-scheme} is a
+nonlinear system for \(n^{k+1}\).
+
+
+\begin{proposition}[Existence, nonnegativity, and homeostatic upper bound]
+\label{prop:fd-positivity-upper-bound}
+Assume that \(n_i^k\ge 0\) for \(1\le i\le N\), and that \(G\) satisfies
+\eqref{eq:g-assumption}--\eqref{eq:g-dissipative}. Then the fully discrete
+scheme \eqref{eq:fd-flux}--\eqref{eq:fd-no-flux} admits a nonnegative
+solution \(n^{k+1}\), namely
+\[
+n_i^{k+1}\ge 0,
+\qquad 1\le i\le N .
+\]
+Moreover, if
+\[
+0\le n_i^k\le n_H:=p_H^{1/\gamma},
+\qquad 1\le i\le N ,
+\]
+then the solution satisfies
+\[
+0\le n_i^{k+1}\le n_H,
+\qquad
+0\le p_i^{k+1}\le p_H,
+\qquad 1\le i\le N .
+\]
+\end{proposition}
+
+\begin{proof}
+We first show that \(M_i^k\ge 0\). If \(p_i^k\ne p_H\), then
+\[
+M_i^k
+=
+-\frac{n_i^kG(p_i^k)}{p_i^k-p_H}\ge 0
+\]
+by \(n_i^k\ge 0\) and \((p-p_H)G(p)\le 0\). If \(p_i^k=p_H\), then
+\[
+M_i^k=-n_i^kG'(p_H)\ge 0
+\]
+by \(G'(p)\le 0\).
+
+We next prove the existence of a nonnegative solution. We write the
+scheme in terms of the pressure variable \(p_i^{k+1}=(n_i^{k+1})^\gamma\).
+For a trial pressure \(p=\{p_i\}_{i=1}^N\), define
+\[
+F_{i+\frac12}
+=
+n^k_{i+\frac12}(\delta_h p)_{i+\frac12},
+\qquad 1\le i\le N-1,
+\]
+together with
+\[
+F_{\frac12}=F_{N+\frac12}=0 .
+\]
+Consider the functional
+\[
+\mathcal J_h(p)
+=
+h\sum_{i=1}^N
+\left[
+\frac{\gamma}{\gamma+1}p_i^{\frac{\gamma+1}{\gamma}}
+-
+n_i^k p_i
++
+\frac{\tau}{2}M_i^k(p_i-p_H)^2
+\right]
++
+\frac{\tau h}{2}
+\sum_{i=1}^{N-1}
+n^k_{i+\frac12}
+\left|(\delta_h p)_{i+\frac12}\right|^2
+\]
+on the closed convex set
+\[
+K_h=\{p\in\mathbb R^N:\ p_i\ge 0,\ 1\le i\le N\}.
+\]
+Since \(M_i^k\ge 0\) and \(n^k_{i+\frac12}\ge 0\), the functional
+\(\mathcal J_h\) is convex on \(K_h\). Moreover, the term
+\(p_i^{(\gamma+1)/\gamma}\) is superlinear on \([0,\infty)\), and hence
+\(\mathcal J_h\) is coercive on \(K_h\). Therefore \(\mathcal J_h\) admits
+a minimizer \(p^{k+1}\in K_h\).
+
+It remains to show that this minimizer satisfies the finite difference
+scheme. The first variation of \(\mathcal J_h\) has the form
+\[
+D\mathcal J_h(p)[\varphi]
+=
+h\sum_{i=1}^N R_i(p)\varphi_i ,
+\]
+where
+\[
+R_i(p)
+=
+p_i^{1/\gamma}
+-
+n_i^k
++
+\tau M_i^k(p_i-p_H)
+-
+\tau (d_hF)_i .
+\]
+If \(p_i>0\), the Euler--Lagrange equation gives \(R_i(p)=0\). If
+\(p_i=0\), the variational inequality on \(K_h\) gives \(R_i(p)\ge 0\).
+On the other hand, since \(p_i=0\) is a minimum of the nonnegative grid
+function \(p\), we have
+\[
+(d_hF)_i\ge 0 ,
+\]
+including the boundary cases because \(F_{\frac12}=F_{N+\frac12}=0\).
+Thus
+\[
+R_i(p)
+=
+-n_i^k-\tau M_i^k p_H-\tau(d_hF)_i
+\le 0 .
+\]
+Hence \(R_i(p)=0\) also when \(p_i=0\). Therefore the minimizer satisfies
+\[
+p_i^{1/\gamma}
+-
+n_i^k
++
+\tau M_i^k(p_i-p_H)
+-
+\tau(d_hF)_i
+=0,
+\qquad 1\le i\le N .
+\]
+Setting
+\[
+n_i^{k+1}=(p_i^{k+1})^{1/\gamma}
+\]
+gives exactly \eqref{eq:fd-scheme}. Since \(p^{k+1}\in K_h\), we obtain
+\(n_i^{k+1}\ge 0\).
+
+We finally prove the upper bound. Assume that
+\[
+0\le n_i^k\le n_H,
+\qquad 1\le i\le N .
+\]
+Suppose, by contradiction, that
+\[
+\max_{1\le i\le N} n_i^{k+1}>n_H .
+\]
+Let \(\ell\) be such that
+\[
+p_\ell^{k+1}
+=
+\max_{1\le i\le N} p_i^{k+1}.
+\]
+Then \(p_\ell^{k+1}>p_H\). Since \(p_\ell^{k+1}\) is a maximum and
+\(n^k_{i+\frac12}\ge 0\), we have
+\[
+(d_hF^{k+1})_\ell\le 0 .
+\]
+Using the fully discrete scheme at \(i=\ell\), we obtain
+\[
+\frac{n_\ell^{k+1}-n_\ell^k}{\tau}
+=
+(d_hF^{k+1})_\ell
+-
+M_\ell^k(p_\ell^{k+1}-p_H)
+\le 0 .
+\]
+Therefore
+\[
+n_\ell^{k+1}\le n_\ell^k\le n_H,
+\]
+which contradicts \(n_\ell^{k+1}>n_H\). Hence
+\[
+n_i^{k+1}\le n_H,
+\qquad 1\le i\le N .
+\]
+Since \(p_i^{k+1}=(n_i^{k+1})^\gamma\), we also have
+\[
+p_i^{k+1}\le p_H,
+\qquad 1\le i\le N .
+\]
+The proof is complete.
+\end{proof}
+
+
+
+We define the discrete modified energy by
+\begin{equation}
+\mathcal E_h(n)
+=
+h\sum_{i=1}^N
+\left(
+\frac{1}{\gamma+1}n_i^{\gamma+1}
+-
+p_Hn_i
+\right).
+\label{eq:fd-discrete-modified-energy}
+\end{equation}
+
+\begin{proposition}[Discrete energy dissipation]
+\label{prop:fd-energy-dissipation}
+Assume that \(n_i^k\ge0\) for \(1\le i\le N\), and that \(G\) satisfies
+\eqref{eq:g-assumption} and \eqref{eq:g-dissipative}. Let
+\(n^{k+1}\) be a nonnegative solution of
+\eqref{eq:fd-flux}--\eqref{eq:fd-no-flux}. Then
+\begin{align}
+\mathcal E_h(n^{k+1})
+&+
+\tau h
+\sum_{i=1}^{N-1}
+n_{i+\frac12}^k
+\left|
+(\delta_hp^{k+1})_{i+\frac12}
+\right|^2
++
+\tau h
+\sum_{i=1}^N
+\mathcal M_i^k
+\left|
+p_i^{k+1}-p_H
+\right|^2
+\nonumber\\
+&\le
+\mathcal E_h(n^k).
+\label{eq:fd-energy-dissipation}
+\end{align}
+In particular,
+\[
+\mathcal E_h(n^{k+1})\le \mathcal E_h(n^k).
+\]
+\end{proposition}
+
+\begin{proof}
+First, by the assumptions on \(G\) and the definition of
+\(\mathcal M_i^k\), we have \(\mathcal M_i^k\ge0\). Indeed, if
+\(p_i^k\ne p_H\), this follows from \eqref{eq:g-dissipative}; if
+\(p_i^k=p_H\), then
+\[
+\mathcal M_i^k=-n_i^kG'(p_H)\ge0 .
+\]
+Since \(n_i^k\ge0\), we also have \(n_{i+\frac12}^k\ge0\).
+
+Let
+\[
+e(n)=\frac{1}{\gamma+1}n^{\gamma+1}-p_Hn .
+\]
+The function \(e\) is convex on \([0,\infty)\), and
+\(e'(n)=n^\gamma-p_H\). Hence, for the nonnegative solution
+\(n^{k+1}\),
+\[
+e(n_i^{k+1})-e(n_i^k)
+\le
+\left(p_i^{k+1}-p_H\right)
+\left(n_i^{k+1}-n_i^k\right).
+\]
+Summing over \(i\) gives
+\begin{equation}
+\mathcal E_h(n^{k+1})-\mathcal E_h(n^k)
+\le
+h\sum_{i=1}^N
+\left(p_i^{k+1}-p_H\right)
+\left(n_i^{k+1}-n_i^k\right).
+\label{eq:fd-convexity-step}
+\end{equation}
+
+Multiplying \eqref{eq:fd-scheme} by
+\(\tau h(p_i^{k+1}-p_H)\) and summing over \(i\), we obtain
+\begin{align}
+h\sum_{i=1}^N
+\left(p_i^{k+1}-p_H\right)
+\left(n_i^{k+1}-n_i^k\right)
+&=
+\tau h
+\sum_{i=1}^N
+\left(p_i^{k+1}-p_H\right)(d_hF^{k+1})_i
+\nonumber\\
+&\quad
+-
+\tau h
+\sum_{i=1}^N
+\mathcal M_i^k
+\left|p_i^{k+1}-p_H\right|^2 .
+\label{eq:fd-testing-step}
+\end{align}
+
+Using the summation-by-parts identity
+\[
+h\sum_{i=1}^N v_i(d_hF)_i
+=
+-h\sum_{i=1}^{N-1}
+F_{i+\frac12}(\delta_hv)_{i+\frac12},
+\]
+which holds under \(F_{\frac12}=F_{N+\frac12}=0\), we get
+\[
+h\sum_{i=1}^N
+\left(p_i^{k+1}-p_H\right)(d_hF^{k+1})_i
+=
+-h\sum_{i=1}^{N-1}
+F_{i+\frac12}^{k+1}
+(\delta_hp^{k+1})_{i+\frac12}.
+\]
+By the definition of \(F_{i+\frac12}^{k+1}\), this becomes
+\[
+h\sum_{i=1}^N
+\left(p_i^{k+1}-p_H\right)(d_hF^{k+1})_i
+=
+-h\sum_{i=1}^{N-1}
+n_{i+\frac12}^k
+\left|
+(\delta_hp^{k+1})_{i+\frac12}
+\right|^2 .
+\]
+Combining this identity with \eqref{eq:fd-convexity-step} and
+\eqref{eq:fd-testing-step} yields
+\begin{align*}
+\mathcal E_h(n^{k+1})-\mathcal E_h(n^k)
+&\le
+-\tau h
+\sum_{i=1}^{N-1}
+n_{i+\frac12}^k
+\left|
+(\delta_hp^{k+1})_{i+\frac12}
+\right|^2  \\
+&\quad
+-
+\tau h
+\sum_{i=1}^N
+\mathcal M_i^k
+\left|p_i^{k+1}-p_H\right|^2 .
+\end{align*}
+This is exactly \eqref{eq:fd-energy-dissipation}. Since both dissipation
+terms are nonnegative, the monotonicity of \(\mathcal E_h\) follows.
+\end{proof}
+
+
+\subsection{Discrete limiting structure in the stiff-pressure regime}
+\label{subsec:large-gamma-structure}
+
+We now discuss the behavior of the fully discrete scheme in the
+stiff-pressure regime $\gamma\to\infty$. The purpose of this subsection is
+not to prove a full asymptotic-preserving result in the sense of deriving
+the discrete pressure complementarity relation
+\[
+p\left(\Delta p+G(p)\right)=0
+\]
+at the fully discrete level. Such a result usually relies on a discrete
+pressure equation and on estimates that are uniform with respect to
+$\gamma$. Instead, for the present Onsager discretization, we prove a
+fixed-grid limiting structure. More precisely, for fixed $h$ and $\tau$,
+the scheme has a subsequential limit satisfying the congestion constraint,
+the density-pressure complementarity relation, and a limiting finite
+difference balance law.
+
+We write explicitly the dependence on $\gamma$. The fully discrete scheme is
+\begin{equation}
+\frac{n_{\gamma,i}^{k+1}-n_{\gamma,i}^{k}}{\tau}
+=
+(d_hF_{\gamma}^{k+1})_i
+-
+M_{\gamma,i}^k
+\left(p_{\gamma,i}^{k+1}-p_H\right),
+\qquad
+p_{\gamma,i}^{k+1}
+=
+\left(n_{\gamma,i}^{k+1}\right)^\gamma ,
+\label{eq:gamma-fd-scheme}
+\end{equation}
+where
+\begin{equation}
+F_{\gamma,i+\frac12}^{k+1}
+=
+n_{\gamma,i+\frac12}^{k}
+(\delta_h p_{\gamma}^{k+1})_{i+\frac12},
+\qquad
+n_{\gamma,i+\frac12}^{k}
+=
+\frac{n_{\gamma,i}^{k}+n_{\gamma,i+1}^{k}}{2},
+\label{eq:gamma-fd-flux}
+\end{equation}
+with
+\[
+F_{\gamma,\frac12}^{k+1}
+=
+F_{\gamma,N+\frac12}^{k+1}
+=
+0.
+\]
+The reaction mobility is
+\begin{equation}
+M_{\gamma,i}^k
+=
+\begin{cases}
+\displaystyle
+-
+\frac{n_{\gamma,i}^kG(p_{\gamma,i}^k)}
+{p_{\gamma,i}^k-p_H},
+&
+p_{\gamma,i}^k\ne p_H,
+\\[2mm]
+\displaystyle
+-n_{\gamma,i}^kG'(p_H),
+&
+p_{\gamma,i}^k=p_H.
+\end{cases}
+\label{eq:gamma-mobility}
+\end{equation}
+
+\begin{proposition}[Fixed-grid stiff-pressure limit]
+\label{prop:fixed-grid-gamma-limit}
+Assume that $G\in C^1([0,\infty))$, $G(p_H)=0$, and $G'(p)\le0$ for
+$p\ge0$. Assume that the initial data satisfy
+\[
+0\le p_{\gamma,i}^0\le p_H,
+\qquad
+p_{\gamma,i}^0=(n_{\gamma,i}^0)^\gamma,
+\qquad
+1\le i\le N .
+\]
+Let $h>0$ and $\tau>0$ be fixed. Suppose that, for a fixed time level $k$,
+\[
+n_{\gamma,i}^{k}\to n_i^k,
+\qquad
+p_{\gamma,i}^{k}\to p_i^k,
+\qquad
+1\le i\le N,
+\]
+along a subsequence as $\gamma\to\infty$. Then there exists a further
+subsequence such that
+\[
+n_{\gamma,i}^{k+1}\to n_i^{k+1},
+\qquad
+p_{\gamma,i}^{k+1}\to p_i^{k+1},
+\qquad
+1\le i\le N .
+\]
+The limiting variables satisfy
+\begin{equation}
+0\le n_i^{k+1}\le 1,
+\qquad
+0\le p_i^{k+1}\le p_H,
+\qquad
+p_i^{k+1}(1-n_i^{k+1})=0 .
+\label{eq:limit-density-pressure-complementarity}
+\end{equation}
+Moreover, they solve the limiting finite difference system
+\begin{equation}
+\frac{n_i^{k+1}-n_i^{k}}{\tau}
+=
+(d_hF^{k+1})_i
+-
+M_i^k
+\left(p_i^{k+1}-p_H\right),
+\qquad
+1\le i\le N,
+\label{eq:limit-fd-balance}
+\end{equation}
+where
+\begin{equation}
+F_{i+\frac12}^{k+1}
+=
+n_{i+\frac12}^{k}
+(\delta_h p^{k+1})_{i+\frac12},
+\qquad
+n_{i+\frac12}^{k}
+=
+\frac{n_i^k+n_{i+1}^k}{2},
+\label{eq:limit-fd-flux}
+\end{equation}
+with
+\[
+F_{\frac12}^{k+1}
+=
+F_{N+\frac12}^{k+1}
+=
+0,
+\]
+and
+\begin{equation}
+M_i^k
+=
+\begin{cases}
+\displaystyle
+-
+\frac{n_i^kG(p_i^k)}
+{p_i^k-p_H},
+&
+p_i^k\ne p_H,
+\\[2mm]
+\displaystyle
+-n_i^kG'(p_H),
+&
+p_i^k=p_H.
+\end{cases}
+\label{eq:limit-mobility}
+\end{equation}
+Equivalently, the limiting variables satisfy the discrete complementarity
+form
+\begin{equation}
+p_i^{k+1}
+\left[
+\frac{1-n_i^{k}}{\tau}
+-
+(d_hF^{k+1})_i
++
+M_i^k
+\left(p_i^{k+1}-p_H\right)
+\right]
+=0,
+\qquad
+1\le i\le N .
+\label{eq:limit-pressure-complementarity-form}
+\end{equation}
+\end{proposition}
+
+\begin{proof}
+By the bound-preserving property of the fully discrete scheme, we have
+\[
+0\le n_{\gamma,i}^{k+1}\le p_H^{1/\gamma},
+\qquad
+0\le p_{\gamma,i}^{k+1}\le p_H,
+\qquad
+1\le i\le N .
+\]
+Since the grid is fixed and contains only finitely many points, there
+exists a subsequence such that
+\[
+n_{\gamma,i}^{k+1}\to n_i^{k+1},
+\qquad
+p_{\gamma,i}^{k+1}\to p_i^{k+1},
+\qquad
+1\le i\le N .
+\]
+Passing to the limit in the above bounds gives
+\[
+0\le n_i^{k+1}\le 1,
+\qquad
+0\le p_i^{k+1}\le p_H .
+\]
+
+We next prove the complementarity relation. Since
+\[
+p_{\gamma,i}^{k+1}
+=
+\left(n_{\gamma,i}^{k+1}\right)^\gamma ,
+\]
+we have
+\[
+n_{\gamma,i}^{k+1}
+=
+\left(p_{\gamma,i}^{k+1}\right)^{1/\gamma}.
+\]
+If $p_i^{k+1}>0$, then $p_{\gamma,i}^{k+1}$ is bounded away from zero for
+all sufficiently large $\gamma$. Hence
+\[
+n_{\gamma,i}^{k+1}
+=
+\left(p_{\gamma,i}^{k+1}\right)^{1/\gamma}
+\longrightarrow 1 .
+\]
+Therefore $p_i^{k+1}>0$ implies $n_i^{k+1}=1$, which is equivalent to
+\[
+p_i^{k+1}(1-n_i^{k+1})=0 .
+\]
+This proves \eqref{eq:limit-density-pressure-complementarity}.
+
+It remains to pass to the limit in the finite difference equation. Since
+$h$ is fixed, all difference operators are finite-dimensional linear
+operators. From the convergence of $n_\gamma^k$ and $p_\gamma^{k+1}$, we get
+\[
+F_{\gamma,i+\frac12}^{k+1}
+=
+n_{\gamma,i+\frac12}^{k}
+(\delta_h p_{\gamma}^{k+1})_{i+\frac12}
+\longrightarrow
+n_{i+\frac12}^{k}
+(\delta_h p^{k+1})_{i+\frac12}
+=
+F_{i+\frac12}^{k+1}.
+\]
+Thus
+\[
+(d_hF_{\gamma}^{k+1})_i
+\longrightarrow
+(d_hF^{k+1})_i .
+\]
+
+We now consider the reaction mobility. If $p_i^k\ne p_H$, then
+\[
+M_{\gamma,i}^k
+=
+-
+\frac{n_{\gamma,i}^kG(p_{\gamma,i}^k)}
+{p_{\gamma,i}^k-p_H}
+\longrightarrow
+-
+\frac{n_i^kG(p_i^k)}
+{p_i^k-p_H}.
+\]
+If $p_i^k=p_H$, then $G(p_H)=0$ and $G\in C^1([0,\infty))$ imply
+\[
+\frac{G(p_{\gamma,i}^k)}{p_{\gamma,i}^k-p_H}
+\longrightarrow
+G'(p_H),
+\]
+and hence
+\[
+M_{\gamma,i}^k
+\longrightarrow
+-n_i^kG'(p_H).
+\]
+Therefore, in all cases,
+\[
+M_{\gamma,i}^k
+\longrightarrow
+M_i^k .
+\]
+Combining this convergence with
+$p_{\gamma,i}^{k+1}\to p_i^{k+1}$ gives
+\[
+M_{\gamma,i}^k
+\left(p_{\gamma,i}^{k+1}-p_H\right)
+\longrightarrow
+M_i^k
+\left(p_i^{k+1}-p_H\right).
+\]
+Passing to the limit in \eqref{eq:gamma-fd-scheme} gives
+\eqref{eq:limit-fd-balance}.
+
+Finally, multiplying \eqref{eq:limit-fd-balance} by $p_i^{k+1}$ and using
+the complementarity relation
+$p_i^{k+1}(1-n_i^{k+1})=0$, we obtain
+\eqref{eq:limit-pressure-complementarity-form}. The proof is complete.
+\end{proof}
+
+\begin{remark}
+The limiting relation \eqref{eq:limit-pressure-complementarity-form} is the
+discrete stiff-pressure structure naturally associated with the present
+Onsager scheme. It should not be confused with the stronger discrete
+pressure complementarity relation
+\[
+p_i(\delta_h^2p_i+G(p_i))=0,
+\]
+which can be derived for certain fully implicit upwind schemes by passing
+to the limit in a discrete pressure equation.
+
+Nevertheless, \eqref{eq:limit-pressure-complementarity-form} is consistent
+with the Hele--Shaw pressure equation. Indeed, in a saturated region where
+$n_i^k\approx 1$ and $p_i^{k+1}\approx p_i^k$, one has
+\[
+-
+M_i^k(p_i^{k+1}-p_H)
+\approx
+G(p_i^{k+1}).
+\]
+In addition, if the neighboring cells are also saturated, then
+\[
+(d_hF^{k+1})_i
+\approx
+(\delta_h^2p^{k+1})_i .
+\]
+Thus the limiting balance formally reduces to
+\[
+(\delta_h^2p^{k+1})_i+G(p_i^{k+1})\approx 0,
+\]
+which is the finite difference form of the Hele--Shaw pressure equation in
+the saturated region.
+\end{remark}
+
+
+\section{Numerical experiments}
+
+
+
+\subsection{}
+
+
+\begin{table}[htbp]
+\centering
+\caption{Temporal \(L^1\) errors and convergence orders at \(T=1\).}
+\label{tab:time-errors-horizontal}
+\setlength{\tabcolsep}{5pt}
+\renewcommand{\arraystretch}{1.12}
+\resizebox{\textwidth}{!}{
+\begin{tabular}{cc|ccccccc}
+\toprule
+\(\gamma\) & quantity
+& \(\tau_0\) & \(\tau_0/2\) & \(\tau_0/4\)
+& \(\tau_0/8\) & \(\tau_0/16\) & \(\tau_0/32\) & \(\tau_0/64\) \\
+\midrule
+3
+& \(e_1\)
+& \(1.84\mathrm{E}{-3}\) & \(9.16\mathrm{E}{-4}\) & \(4.51\mathrm{E}{-4}\)
+& \(2.18\mathrm{E}{-4}\) & \(1.02\mathrm{E}{-4}\) & \(4.37\mathrm{E}{-5}\) & \(1.46\mathrm{E}{-5}\) \\
+&
+order
+& -- & 1.01 & 1.02 & 1.05 & 1.10 & 1.22 & 1.58 \\
+\midrule
+10
+& \(e_1\)
+& \(1.66\mathrm{E}{-3}\) & \(8.30\mathrm{E}{-4}\) & \(4.10\mathrm{E}{-4}\)
+& \(1.99\mathrm{E}{-4}\) & \(9.30\mathrm{E}{-5}\) & \(3.99\mathrm{E}{-5}\) & \(1.33\mathrm{E}{-5}\) \\
+&
+order
+& -- & 1.00 & 1.02 & 1.04 & 1.10 & 1.22 & 1.58 \\
+\midrule
+100
+& \(e_1\)
+& \(3.79\mathrm{E}{-4}\) & \(1.98\mathrm{E}{-4}\) & \(1.01\mathrm{E}{-4}\)
+& \(5.04\mathrm{E}{-5}\) & \(2.40\mathrm{E}{-5}\) & \(1.04\mathrm{E}{-5}\) & \(3.51\mathrm{E}{-6}\) \\
+&
+order
+& -- & 0.94 & 0.97 & 1.01 & 1.07 & 1.20 & 1.57 \\
+\bottomrule
+\end{tabular}}
+\end{table}
+
+
+\begin{table}[htbp]
+\centering
+\caption{Spatial \(L^1\) errors and convergence orders at \(T=1\).}
+\label{tab:spatial-errors-horizontal}
+\setlength{\tabcolsep}{6pt}
+\renewcommand{\arraystretch}{1.12}
+\resizebox{\textwidth}{!}{
+\begin{tabular}{cc|cccccc}
+\toprule
+\(\gamma\) & quantity
+& \(h=2^{-4}\) & \(h=2^{-5}\) & \(h=2^{-6}\)
+& \(h=2^{-7}\) & \(h=2^{-8}\) & \(h=2^{-9}\) \\
+\midrule
+3
+& \(e_1\)
+& \(1.27\mathrm{E}{-4}\) & \(3.18\mathrm{E}{-5}\) & \(7.95\mathrm{E}{-6}\)
+& \(1.98\mathrm{E}{-6}\) & \(4.90\mathrm{E}{-7}\) & \(1.17\mathrm{E}{-7}\) \\
+&
+order
+& -- & 2.00 & 2.00 & 2.00 & 2.02 & 2.07 \\
+\midrule
+10
+& \(e_1\)
+& \(3.92\mathrm{E}{-4}\) & \(9.68\mathrm{E}{-5}\) & \(2.42\mathrm{E}{-5}\)
+& \(6.04\mathrm{E}{-6}\) & \(1.49\mathrm{E}{-6}\) & \(3.55\mathrm{E}{-7}\) \\
+&
+order
+& -- & 2.02 & 2.00 & 2.01 & 2.02 & 2.07 \\
+\midrule
+100
+& \(e_1\)
+& \(2.22\mathrm{E}{-5}\) & \(5.60\mathrm{E}{-6}\) & \(1.40\mathrm{E}{-6}\)
+& \(3.49\mathrm{E}{-7}\) & \(8.64\mathrm{E}{-8}\) & \(2.06\mathrm{E}{-8}\) \\
+&
+order
+& -- & 1.98 & 2.00 & 2.00 & 2.02 & 2.07 \\
+\bottomrule
+\end{tabular}}
+\end{table}
+
+
+
+
+\subsection{Accuracy and structure-preserving properties for the porous medium equation}
+\label{subsec:numerical-barenblatt}
+
+We first examine the proposed scheme for the pure porous medium equation.
+The growth term is removed by taking
+\[
+G(p)=0 .
+\]
+Since \(p=n^\gamma\), the model reduces to
+\begin{equation}
+\partial_t n
+=
+\partial_x\left(n\partial_x n^\gamma\right)
+=
+\frac{\gamma}{\gamma+1}\partial_{xx} n^{\gamma+1}.
+\label{eq:pme-test-equation}
+\end{equation}
+This equation admits a time-shifted Barenblatt solution. Let
+\[
+\kappa=\frac{\gamma}{\gamma+1},
+\qquad
+\beta=\frac{1}{\gamma+2},
+\qquad
+s=\kappa(t+t_0).
+\]
+The exact solution is given by
+\begin{equation}
+n_{\rm ex}(x,t)
+=
+s^{-\beta}
+\left(
+C_{\rm bar}
+-
+\frac{\beta\gamma}{2(\gamma+1)}
+\frac{x^2}{s^{2\beta}}
+\right)_+^{1/\gamma},
+\label{eq:barenblatt-profile}
+\end{equation}
+where \((z)_+=\max\{z,0\}\). The initial condition is chosen as
+\[
+n_0(x)=n_{\rm ex}(x,0).
+\]
+
+The computation is performed on the interval \([-5,5]\) with no-flux
+boundary conditions at both endpoints. For the profile comparison, we use
+\[
+h=\frac{1}{64},
+\qquad
+\tau=0.01h,
+\qquad
+T=0.1,
+\qquad
+t_0=0.01 .
+\]
+Two values of the nonlinear exponent are considered. For \(\gamma=3\), we
+take \(C_{\rm bar}=1\). For \(\gamma=20\), we take
+\(C_{\rm bar}=0.1\), so that the support of the exact solution remains
+well inside the computational domain.
+
+Figure~\ref{fig:example1-profiles} compares the numerical solution with
+the Barenblatt profile at \(T=0.1\). The numerical solution agrees well
+with the exact solution for both values of \(\gamma\). As \(\gamma\)
+increases, the profile becomes flatter in the interior and sharper near
+the free boundary. This shows that the scheme captures the degenerate
+diffusion mechanism accurately.
+
+\begin{figure}[htp!]
+  \centering
+  \includegraphics[width=0.9\textwidth]{example1_figure1.eps}
+  \caption{Comparison between the numerical solution and the Barenblatt
+  profile for the porous medium equation with \(G(p)=0\). The left panel
+  corresponds to \(\gamma=3\) with \(C_{\rm bar}=1\), and the right panel
+  corresponds to \(\gamma=20\) with \(C_{\rm bar}=0.1\). The parameters are
+  \(h=1/64\), \(\tau=0.01h\), and \(T=0.1\).}
+  \label{fig:example1-profiles}
+\end{figure}
+
+We next quantify the spatial convergence behavior. The discrete \(L^1\)
+error at time \(t_k\) is defined by
+\[
+\operatorname{err}_1(t_k)
+=
+h\sum_{i=1}^N
+\left|n_i^k-n_{\rm ex}(x_i,t_k)\right|.
+\]
+For each mesh size, we compute
+\[
+e_h
+=
+\max_{t_k\in[0.05,T]}
+\operatorname{err}_1(t_k).
+\]
+The observed order between two consecutive meshes is computed by
+\[
+\mathrm{order}
+=
+\log_2\frac{e_h}{e_{h/2}} .
+\]
+The results are reported in Table~\ref{tab:example1-spatial-convergence}.
+For both values of \(\gamma\), the error decreases under mesh refinement.
+The observed rates are close to first order for \(\gamma=20\), while a
+slightly higher rate is obtained for \(\gamma=3\). This behavior is
+consistent with the limited regularity of the Barenblatt profile near the
+moving interface.
+
+\begin{table}[htp!]
+\centering
+\caption{Discrete \(L^1\) errors and observed spatial convergence orders
+for the Barenblatt test with \(G(p)=0\). The error is measured by
+\(e_h=\max_{t_k\in[0.05,T]}\operatorname{err}_1(t_k)\).}
+\label{tab:example1-spatial-convergence}
+\renewcommand{\arraystretch}{1.15}
+\begin{tabular}{cccccc}
+\hline
+\(\gamma\) & quantity & \(1/32\) & \(1/64\) & \(1/128\) & \(1/256\) \\
+\hline
+\multirow{2}{*}{3}
+& \(e_h\) & \(1.81{\times}10^{-2}\) & \(8.22{\times}10^{-3}\)
+          & \(3.48{\times}10^{-3}\) & \(1.15{\times}10^{-3}\) \\
+& order   & -- & 1.14 & 1.24 & 1.61 \\
+\hline
+\multirow{2}{*}{20}
+& \(e_h\) & \(4.06{\times}10^{-2}\) & \(1.91{\times}10^{-2}\)
+          & \(9.14{\times}10^{-3}\) & \(4.50{\times}10^{-3}\) \\
+& order   & -- & 1.09 & 1.06 & 1.02 \\
+\hline
+\end{tabular}
+\end{table}
+
+We also examine the temporal accuracy of the fully implicit time
+discretization. To reduce the influence of the spatial error, the mesh size
+is fixed sufficiently small and the time step is successively refined. The
+temporal error is measured by
+\[
+e_\tau
+=
+\max_{t_k\in[0.05,T]}
+h\sum_{i=1}^N
+\left|n_i^k-n_{\rm ex}(x_i,t_k)\right|.
+\]
+The observed temporal order is computed by
+\[
+\mathrm{order}
+=
+\log_2\frac{e_\tau}{e_{\tau/2}} .
+\]
+The results in Table~\ref{tab:example1-temporal-convergence} show the
+expected first-order temporal accuracy of the fully implicit scheme.
+
+\begin{table}[htp!]
+\centering
+\caption{Temporal errors and observed orders for the Barenblatt test with
+\(G(p)=0\). A sufficiently fine spatial mesh is used so that the temporal
+error dominates.}
+\label{tab:example1-temporal-convergence}
+\renewcommand{\arraystretch}{1.15}
+\begin{tabular}{cccccc}
+\hline
+\(\gamma\) & quantity & \(\tau_0\) & \(\tau_0/2\) & \(\tau_0/4\) & \(\tau_0/8\) \\
+\hline
+\multirow{2}{*}{3}
+& \(e_\tau\) &  &  &  &  \\
+& order & -- &  &  &  \\
+\hline
+\multirow{2}{*}{20}
+& \(e_\tau\) &  &  &  &  \\
+& order & -- &  &  &  \\
+\hline
+\end{tabular}
+\end{table}
+
+We finally examine mass conservation and energy dissipation. Since
+\(G(p)=0\), the continuous equation conserves the total mass. The discrete
+mass is defined by
+\[
+M_h(t_k)=h\sum_{i=1}^N n_i^k ,
+\]
+and the relative mass variation is computed by
+\[
+\frac{M_h(t_k)-M_h(0)}{M_h(0)} .
+\]
+For this test, the discrete energy is
+\begin{equation}
+\mathcal E_h(n^k)
+=
+h\sum_{i=1}^N
+\frac{1}{\gamma+1}(n_i^k)^{\gamma+1}.
+\label{eq:example1-energy}
+\end{equation}
+The structure-preserving test is performed with the same mesh size
+\(h=1/64\) and time step \(\tau=0.01h\). The computation is continued to
+\(T_{\rm sp}=1\) in order to better display the long-time behavior.
+
+Figure~\ref{fig:example1-mass-energy} shows the relative mass variation
+and the normalized energy \(\mathcal E_h(n^k)/\mathcal E_h(n^0)\). The mass
+variation remains at the level of round-off errors, and the discrete
+energy decreases monotonically along the numerical solution. This confirms
+the conservative and dissipative properties of the scheme in the pure
+diffusion case.
+
+\begin{figure}[htp!]
+  \centering
+  \includegraphics[width=0.9\textwidth]{example1_figure3.eps}
+  \caption{Mass conservation and energy dissipation for the Barenblatt
+  test with \(G(p)=0\). The left panel shows the relative mass variation
+  for \(\gamma=3\) and \(\gamma=20\). The right panel shows the normalized
+  discrete energy \(\mathcal E_h(n^k)/\mathcal E_h(n^0)\) for
+  \(\gamma=3\) and \(\gamma=20\).}
+  \label{fig:example1-mass-energy}
+\end{figure}
+
+We close this test by examining the temporal resolution required for
+compactly supported solutions. Although the proposed scheme is
+unconditionally energy stable, the accurate resolution of the moving free
+boundary requires a sufficiently fine time step. This should be understood
+as an accuracy requirement rather than a stability restriction.
+
+To illustrate this point, we compare spatial refinements with fixed time
+steps and with coupled choices of the form \(\tau=Ch\). For \(\gamma=3\),
+we take \(C_{\rm bar}=1\) and use \(\tau=0.05h\). For \(\gamma=20\), we
+take \(C_{\rm bar}=0.1\) and use \(\tau=0.01h\). The results are shown in
+Figure~\ref{fig:example1-mesh-time-coupling}.
+
+\begin{figure}[htp!]
+  \centering
+  \includegraphics[width=0.9\textwidth]{example1_figure4.eps}
+  \caption{Mesh-time coupling test for compactly supported Barenblatt
+  solutions. The left panel corresponds to \(\gamma=3\) with
+  \(C_{\rm bar}=1\), and the right panel corresponds to \(\gamma=20\) with
+  \(C_{\rm bar}=0.1\). For fixed time steps, spatial refinement alone does
+  not always lead to a consistent decrease of the error. In contrast, the
+  coupled choices \(\tau=0.05h\) for \(\gamma=3\) and \(\tau=0.01h\) for
+  \(\gamma=20\) give a more regular error decay. This illustrates a
+  time-resolution requirement for accuracy near the moving free boundary,
+  not a stability restriction.}
+  \label{fig:example1-mesh-time-coupling}
+\end{figure}
+
+
+\subsection{Structure-preserving test with nonzero growth}
+\label{subsec:numerical-growth}
+
+We next consider a test with a nonzero growth term. The purpose of this
+test is to examine the bound-preserving property and the modified energy
+dissipation of the fully discrete scheme. We take
+\[
+G(p)=p_H-p,
+\qquad
+p_H=1 .
+\]
+Then
+\[
+(p-p_H)G(p)=-(p-p_H)^2\le0,
+\]
+which is consistent with the dissipation condition used in the theoretical
+analysis. The corresponding homeostatic density is
+\[
+n_H=p_H^{1/\gamma}=1 .
+\]
+
+The computational domain is \([-5,5]\), and the initial density is chosen
+as
+\[
+n_0(x)=0.8\,\mathbf 1_{[-1,1]}(x).
+\]
+Thus the initial data are compactly supported and satisfy
+\[
+0\le n_0(x)\le n_H .
+\]
+In this test, we use
+\[
+\gamma=10,
+\qquad
+h=0.025,
+\qquad
+\tau=10^{-4},
+\qquad
+T=2 .
+\]
+The nonlinear algebraic system at each time step is solved by the damped
+Newton iteration described above.
+
+Figure~\ref{fig:example2-profiles} shows the evolution of the density and
+pressure at several times. The density remains nonnegative and expands
+with finite speed. Inside the support, the density increases toward the
+homeostatic value \(n_H=1\) without exceeding it. The pressure develops a
+cap-shaped profile in the region occupied by the population and remains
+close to zero near the free boundary. This behavior is consistent with
+the pressure-inhibited growth mechanism.
+
+\begin{figure}[htp!]
+  \centering
+  \includegraphics[width=0.9\textwidth]{example2_figure1.eps}
+  \caption{Density and pressure profiles for the model with
+  \(G(p)=p_H-p\) and \(p_H=1\). The left panel shows the density profiles
+  and the right panel shows the pressure profiles at \(t=0,0.5,1,2\).
+  The parameters are \(\gamma=10\), \(h=0.025\), \(\tau=10^{-4}\), and
+  \(T=2\).}
+  \label{fig:example2-profiles}
+\end{figure}
+
+We then examine the numerical bounds and the modified energy. For the
+choice \(G(p)=p_H-p\), the continuous model is associated with the
+modified energy
+\[
+\int_\Omega
+\left(
+\frac{1}{\gamma+1}n^{\gamma+1}
+-
+p_H n
+\right)\,dx .
+\]
+Accordingly, we compute the discrete modified energy by
+\begin{equation}
+\mathcal E_h(n^k)
+=
+h\sum_{i=1}^N
+\left(
+\frac{1}{\gamma+1}(n_i^k)^{\gamma+1}
+-
+p_H n_i^k
+\right).
+\label{eq:example2-modified-energy}
+\end{equation}
+
+Figure~\ref{fig:example2-bounds-energy} displays the minimum and maximum
+values of the density, the maximum value of the pressure, and the
+modified energy. The numerical solution satisfies
+\[
+\min_i n_i^k\ge0,
+\qquad
+\max_i n_i^k\le n_H,
+\qquad
+\max_i p_i^k\le p_H
+\]
+throughout the computation, up to round-off errors. The modified energy
+is nonincreasing in time. These results confirm that the scheme preserves
+the expected bounds and the modified energy dissipation in the presence
+of a nonzero growth term.
+
+\begin{figure}[htp!]
+  \centering
+  \includegraphics[width=0.9\textwidth]{example2_figure2.eps}
+  \caption{Bounds and modified energy dissipation for the model with
+  \(G(p)=p_H-p\) and \(p_H=1\). The left panel shows \(\min_i n_i^k\),
+  \(\max_i n_i^k\), and \(\max_i p_i^k\), together with the reference
+  level \(n_H=p_H=1\). The right panel shows the modified energy
+  \(\mathcal E_h(n^k)\).}
+  \label{fig:example2-bounds-energy}
+\end{figure}
+
+
+
+\subsection{Large-\texorpdfstring{\(\gamma\)}{gamma} behavior and the Hele--Shaw limit}
+\label{subsec:numerical-large-gamma}
+
+We next examine the behavior of the proposed scheme in the nearly
+incompressible regime. We take
+\[
+G(p)=1-p,
+\qquad
+p_H=1 .
+\]
+In the formal limit \(\gamma\to\infty\), the density converges to a
+patch-type solution and the pressure satisfies a Hele--Shaw free boundary
+problem. For a symmetric saturated interval \((-R(t),R(t))\), the limiting
+pressure satisfies
+\[
+-p_{\infty,xx}=1-p_\infty,
+\qquad |x|<R(t),
+\]
+together with the boundary condition
+\[
+p_\infty(\pm R(t),t)=0 .
+\]
+Hence
+\begin{equation}
+p_\infty(x,t)
+=
+\left(
+1-\frac{\cosh x}{\cosh R(t)}
+\right)_+,
+\qquad
+n_\infty(x,t)=\mathbf 1_{[-R(t),R(t)]}(x).
+\label{eq:example3-hs-solution}
+\end{equation}
+The normal velocity law gives
+\[
+R'(t)=-\partial_x p_\infty(R(t),t)=\tanh R(t),
+\qquad
+R(0)=R_0 .
+\]
+Therefore
+\begin{equation}
+R(t)=\operatorname{arsinh}\left(e^t\sinh R_0\right).
+\label{eq:example3-hs-radius}
+\end{equation}
+
+To reduce the initial layer, we use well-prepared initial data. Given
+\(R_0=1\), we define
+\[
+p_0(x)
+=
+\left(
+1-\frac{\cosh x}{\cosh R_0}
+\right)_+
+\]
+and set
+\begin{equation}
+n_0^\gamma(x)=p_0(x)^{1/\gamma}.
+\label{eq:example3-well-prepared}
+\end{equation}
+Then
+\[
+(n_0^\gamma(x))^\gamma=p_0(x),
+\]
+so that the initial pressure agrees with the limiting Hele--Shaw pressure
+at \(t=0\).
+
+The computations are performed on the interval \([-5,5]\). We fix
+\[
+N=6400,
+\qquad
+h=\frac{10}{N},
+\qquad
+\tau=10^{-4},
+\qquad
+T=1 .
+\]
+For the profile comparison, we display the numerical solutions for
+\[
+\gamma=3,\quad 20,\quad 200 .
+\]
+
+Figure~\ref{fig:example3-profiles} shows the numerical density and
+pressure at \(T=1\), together with the explicit limiting profiles in
+\eqref{eq:example3-hs-solution}. As \(\gamma\) increases, the density
+approaches the characteristic function \(n_\infty\), while the pressure
+approaches the limiting Hele--Shaw pressure. The density develops a
+sharper transition layer near the moving boundary. In contrast, the
+pressure remains continuous and is less affected by the interfacial
+transition.
+
+\begin{figure}[htp!]
+  \centering
+  \includegraphics[width=0.9\textwidth]{example3_figure1.eps}
+  \caption{Large-\(\gamma\) behavior in one dimension. The left panel shows density profiles at \(T=1\). The right panel shows pressure profiles at \(T=1\). The black dotted curves denote the explicit Hele--Shaw limit.}
+  \label{fig:example3-profiles}
+\end{figure}
+
+We also give a quantitative comparison with the explicit Hele--Shaw
+limit. The discrete \(L^1\) errors at \(T=1\) are defined by
+\begin{align}
+{\rm err}_{n}^{\gamma}(T)
+&=
+h\sum_{i=1}^N
+\left|
+n_i^\gamma(T)-n_\infty(x_i,T)
+\right|,
+\label{eq:example3-error-n}
+\\
+{\rm err}_{p}^{\gamma}(T)
+&=
+h\sum_{i=1}^N
+\left|
+p_i^\gamma(T)-p_\infty(x_i,T)
+\right|.
+\label{eq:example3-error-p}
+\end{align}
+The results are reported in Figure~\ref{fig:example3-errors} for
+representative values of \(\gamma\) in the large-\(\gamma\) regime. Both
+errors decrease as \(\gamma\) increases, which indicates that the
+numerical solution approaches the Hele--Shaw limit. The pressure error is
+smaller and decreases more regularly, since the limiting pressure is
+continuous. The density error is larger because the limiting density is a
+characteristic function and the numerical density contains a thin
+transition layer near the free boundary.
+
+This experiment is intended to demonstrate the asymptotic trend toward
+the Hele--Shaw limit. We do not use it to claim a rigorous convergence
+rate with respect to \(\gamma\), since the reported errors also contain
+spatial and temporal discretization errors.
+
+\begin{figure}[htp!]
+  \centering
+  \includegraphics[width=0.65\textwidth]{example3_figure3.eps}
+  \caption{Final-time discrete \(L^1\) errors of the density and pressure with respect to the explicit Hele--Shaw limit with fixed \(N=6400\).}
+  \label{fig:example3-errors}
+\end{figure}
+
+
+\subsection{Two-dimensional free boundary evolutions}
+\label{subsec:numerical-2d}
+
+We finally present two-dimensional simulations to illustrate the robustness
+of the proposed scheme for free boundary evolutions with topology changes.
+In this part, we consider
+\[
+G(p)=1-p,
+\qquad
+p_H=1,
+\qquad
+p=n^\gamma .
+\]
+The density and pressure are computed on a uniform Cartesian grid, and
+the homogeneous no-flux boundary condition is imposed on the boundary of
+the computational domain. In the plots below, the level set \(n=0.5\) is
+used to visualize the numerical free boundary.
+
+\subsubsection{Hole filling from an annular initial density}
+\label{subsubsec:numerical-annulus}
+
+We first consider an annular initial density. The computational domain is
+\[
+\Omega=[-5,5]^2 .
+\]
+The initial condition is chosen as
+\[
+n_0(x,y)
+=
+0.8\,\mathbf 1_{\{r_{\rm in}\le \sqrt{x^2+y^2}\le r_{\rm out}\}},
+\qquad
+r_{\rm in}=0.8,
+\qquad
+r_{\rm out}=2.0 .
+\]
+In this example, we use
+\[
+\gamma=40,
+\qquad
+\tau=10^{-3},
+\qquad
+T=2 .
+\]
+This example is designed to test whether the numerical method can capture
+the simultaneous expansion of the outer boundary and contraction of the
+inner boundary.
+
+Figure~\ref{fig:annulus-topview} shows top views of the density at
+selected times. The black curves denote the level set \(n=0.5\). The
+annular region expands outward, while the hole shrinks and eventually
+disappears. The computation therefore captures the transition from a
+doubly connected region to a simply connected tumor region.
+
+\begin{figure}[htp!]
+  \centering
+  \includegraphics[width=0.95\textwidth]{example5_figure1.eps}
+  \caption{Top views of the annular density evolution. The panels show
+  \(n(x,y,t)\) at selected times. The black curves denote the level set
+  \(n=0.5\), which is used to visualize the moving free boundary.}
+  \label{fig:annulus-topview}
+\end{figure}
+
+The corresponding centerline sections are shown in
+Figure~\ref{fig:annulus-sections}. The density profiles along \(y=0\)
+give a more detailed view of the motion of the inner and outer interfaces.
+The inner interface moves toward the origin and disappears, while the
+outer interface keeps moving outward. This confirms the hole-filling
+behavior observed in the top-view plots.
+
+\begin{figure}[htp!]
+  \centering
+  \includegraphics[width=0.95\textwidth]{example5_figure2.eps}
+  \caption{Density sections for the annular initial density along the line
+  \(y=0\). The six panels correspond to the same time levels as in
+  Figure~\ref{fig:annulus-topview}. The vertical dashed lines mark the
+  crossings of the level \(n=0.5\).}
+  \label{fig:annulus-sections}
+\end{figure}
+
+\subsubsection{Merging of two tumor patches}
+\label{subsubsec:numerical-twodisks}
+
+We next consider the merging of two initially separated tumor patches. The
+computational domain is
+\[
+\Omega=[-5,5]^2 .
+\]
+The initial density is
+\[
+n_0(x,y)
+=
+0.8\,\mathbf 1_{B((-c_0,0),r_0)\cup B((c_0,0),r_0)},
+\qquad
+r_0=0.8,
+\qquad
+c_0=1.4 .
+\]
+Here \(B(z,r)\) denotes the disk centered at \(z\) with radius \(r\). This
+example is used to examine whether the method can handle the merging of
+two connected components.
+
+Figure~\ref{fig:twodisks-topview} shows top views of the density at
+selected times. The two components initially expand separately. They then
+touch each other and merge into a single connected region. The black level
+curves show that the numerical free boundary remains well resolved during
+the merging process.
+
+\begin{figure}[htp!]
+  \centering
+  \includegraphics[width=0.95\textwidth]{example6_figure1.eps}
+  \caption{Top views of the merging of two tumor patches. The panels show
+  \(n(x,y,t)\) at selected times. The black curves denote the level set
+  \(n=0.5\), which is used to visualize the moving free boundary.}
+  \label{fig:twodisks-topview}
+\end{figure}
+
+The centerline sections along \(y=0\) are shown in
+Figure~\ref{fig:twodisks-sections}. At early times, the density profiles
+contain two separated components. As time evolves, the two interfaces move
+toward each other, the gap between the two patches closes, and a single
+connected density profile is formed. This provides a one-dimensional view
+of the topology change shown in Figure~\ref{fig:twodisks-topview}.
+
+\begin{figure}[htp!]
+  \centering
+  \includegraphics[width=0.95\textwidth]{example6_figure2.eps}
+  \caption{Density sections for the merging of two tumor patches along the
+  line \(y=0\). The six panels correspond to the same time levels as in
+  Figure~\ref{fig:twodisks-topview}. The vertical dashed lines mark the
+  crossings of the level \(n=0.5\).}
+  \label{fig:twodisks-sections}
+\end{figure}
+
+These two examples show that the proposed scheme can robustly capture
+large deformations and topology changes of the numerical free boundary.
+In particular, it resolves both the disappearance of an inner hole and
+the merging of two initially disconnected tumor patches.
+
+
+\section{Conclusion}
+
+We have developed a structure-preserving finite difference method for a
+pressure-driven tumor growth model with pressure-dependent proliferation.
+The scheme is constructed from the Onsager variational principle by using a
+modified energy shifted by the homeostatic pressure. This modification makes
+the reaction contribution dissipative under the pressure-inhibition
+assumption and allows the transport and growth mechanisms to be incorporated
+into a unified Rayleighian formulation.
+
+The resulting time-discrete scheme is obtained from a constrained
+minimization problem, while the fully discrete scheme uses explicit
+mobilities and an implicit pressure update. We proved that the method
+preserves the nonnegativity of the density, the homeostatic upper bound, and
+a discrete modified energy dissipation law. These properties are consistent
+with the structural behavior of the continuous model.
+
+The numerical results confirm the theoretical findings. The method
+accurately captures Barenblatt profiles in the pure diffusion case,
+preserves mass and energy dissipation, and remains stable in the presence of
+nonzero growth. In the large-\(\gamma\) regime, the numerical density and
+pressure approach the corresponding Hele--Shaw limit. Two-dimensional
+simulations also show that the method can robustly handle free boundary
+motion with topology changes, including hole filling and the merging of
+separated tumor patches.
+
+Future work will focus on extensions to more complex tumor growth models,
+including nutrient effects, chemotaxis, and multiple cell populations, as
+well as adaptive implementations for sharper resolution of free boundaries.
+
+
+
+\appendix
+
+\section{Implementation of the nonlinear solver}
+\label{app:nonlinear-solver}
+
+This appendix describes the nonlinear solver used for the fully discrete
+scheme. At each time step, the coefficients \(n^k_{i+\frac12}\) and
+\(M_i^k\) are evaluated explicitly from the known solution at time
+\(t_k\). Consequently, the nonlinear unknown can be chosen as the
+pressure \(p^{k+1}=\{p_i^{k+1}\}_{i=1}^N\). The density is then recovered
+by
+\[
+n_i^{k+1}=(p_i^{k+1})^{1/\gamma}.
+\]
+
+For a trial pressure \(p=\{p_i\}_{i=1}^N\), define the numerical flux by
+\[
+F_{i+\frac12}(p)
+=
+n^k_{i+\frac12}\frac{p_{i+1}-p_i}{h},
+\qquad 1\le i\le N-1,
+\]
+together with the no-flux boundary condition
+\[
+F_{\frac12}(p)=F_{N+\frac12}(p)=0.
+\]
+The nonlinear system is written in the residual form
+\begin{equation}
+\mathcal R_i(p)
+=
+p_i^{1/\gamma}
+-
+n_i^k
++
+\tau M_i^k(p_i-p_H)
+-
+\tau (d_hF(p))_i
+=0,
+\qquad 1\le i\le N .
+\label{eq:app-newton-residual}
+\end{equation}
+Solving \eqref{eq:app-newton-residual} gives \(p^{k+1}\), and the fully
+discrete update is completed by setting
+\[
+n_i^{k+1}=(p_i^{k+1})^{1/\gamma}.
+\]
+
+We solve \eqref{eq:app-newton-residual} by a damped Newton iteration.
+Given an approximation \(p^{[\ell]}\), the Newton correction
+\(s^{[\ell]}\) is determined from
+\[
+\mathcal J(p^{[\ell]})s^{[\ell]}
+=
+-\mathcal R(p^{[\ell]}),
+\]
+where \(\mathcal J(p)\) denotes the Jacobian matrix of
+\(\mathcal R(p)\). In one space dimension, the nonzero entries of
+\(\mathcal J(p)\) are given by
+\begin{align}
+\mathcal J_{i,i}(p)
+&=
+\frac1\gamma p_i^{1/\gamma-1}
++
+\tau M_i^k
++
+\frac{\tau}{h^2}
+\left(
+n^k_{i+\frac12}
++
+n^k_{i-\frac12}
+\right),
+\label{eq:app-newton-jac-diag}
+\\
+\mathcal J_{i,i+1}(p)
+&=
+-\frac{\tau}{h^2}n^k_{i+\frac12},
+\qquad
+1\le i\le N-1,
+\label{eq:app-newton-jac-upper}
+\\
+\mathcal J_{i,i-1}(p)
+&=
+-\frac{\tau}{h^2}n^k_{i-\frac12},
+\qquad
+2\le i\le N.
+\label{eq:app-newton-jac-lower}
+\end{align}
+Here the convention
+\[
+n^k_{\frac12}=n^k_{N+\frac12}=0
+\]
+is used, which is consistent with the no-flux boundary condition. Hence,
+in one space dimension, \(\mathcal J(p)\) is a tridiagonal matrix.
+
+To preserve nonnegativity during the nonlinear iteration, the Newton
+step is combined with a backtracking line search. Starting from
+\(\alpha_\ell=1\), the damping parameter is successively reduced by
+\[
+\alpha_\ell \leftarrow \frac{\alpha_\ell}{2}
+\]
+until the candidate update
+\[
+p^{[\ell]}+\alpha_\ell s^{[\ell]}
+\]
+satisfies
+\[
+p_i^{[\ell]}+\alpha_\ell s_i^{[\ell]}\ge 0,
+\qquad 1\le i\le N,
+\]
+and the residual decrease condition
+\[
+\|\mathcal R(p^{[\ell]}+\alpha_\ell s^{[\ell]})\|_2
+\le
+(1-c\alpha_\ell)\|\mathcal R(p^{[\ell]})\|_2 .
+\]
+In all computations, we take \(c=10^{-4}\). The new iterate is then
+defined by
+\[
+p^{[\ell+1]}=p^{[\ell]}+\alpha_\ell s^{[\ell]}.
+\]
+
+The Newton iteration is terminated when
+\[
+\frac{\|\mathcal R(p^{[\ell]})\|_\infty}
+{1+\|n^k\|_\infty}
+\le {\rm tol}_{\rm N}.
+\]
+For the one-dimensional numerical experiments, we take
+\[
+{\rm tol}_{\rm N}=10^{-10}.
+\]
+For the two-dimensional simulations, the same stopping criterion is used,
+with a tolerance chosen according to the mesh resolution.
+
+Several safeguards are used in the implementation. The initial guess is
+chosen as
+\[
+p_i^{[0]}=\max\{p_i^k,p_{\min}\},
+\]
+where \(p_{\min}>0\) is a small cutoff. This avoids evaluating
+\(p_i^{1/\gamma-1}\) at zero in the Jacobian matrix. The residual
+\eqref{eq:app-newton-residual}, however, is always evaluated from the
+original nonlinear equation. Moreover, when \(|p_i^k-p_H|\) is below a
+prescribed threshold, the reaction mobility is evaluated by its limiting
+value
+\[
+M_i^k=-n_i^kG'(p_H),
+\]
+in agreement with the definition of the scheme.
+
+In one space dimension, the linear Newton system is solved by a direct
+tridiagonal solver. In two space dimensions, the same procedure leads to
+a sparse matrix with the standard five-point structure, and the Newton
+correction is computed by a sparse linear solver. Since the mobility
+coefficients are frozen at time level \(t_k\), only the diagonal
+nonlinear contribution in \eqref{eq:app-newton-jac-diag} changes during
+the Newton iteration.
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+\end{document}
